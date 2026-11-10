@@ -24,11 +24,13 @@ class TestOwnerEmail:
         assert email["reply_to"] == [CUSTOMER]
         assert "AB12CDE" in email["subject"]
         for value in (
-            "AB12CDE", "CITROEN", "C3", "2009", "SILVER", "DIESEL", "10,220 miles", "Alex Smith",
+            "AB12CDE", "CITROEN", "C3", "10,220 miles", "Alex Smith",
             CUSTOMER, "+447701910159", "1 High Street, Bedford MK40 1AA", "Full service history.",
             "Tuesday 3 November 2026 at 12:00 (UK time)",
         ):
             assert value in email["html"]
+        for removed in (">Year<", ">Colour<", ">Fuel<", "2009", "SILVER", "DIESEL"):
+            assert removed not in email["html"]
 
     def test_photos_are_thumbnails_linking_to_full_images(self, api_client, resend_send):
         submit(api_client, images=[image_file(), image_file()])

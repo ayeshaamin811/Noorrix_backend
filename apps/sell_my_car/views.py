@@ -45,9 +45,6 @@ class ThrottleErrorMixin:
             fields={
                 "make": serializers.CharField(allow_null=True, required=False),
                 "model": serializers.CharField(allow_null=True, required=False),
-                "year": serializers.IntegerField(allow_null=True, required=False),
-                "colour": serializers.CharField(allow_null=True, required=False),
-                "fuel_type": serializers.CharField(allow_null=True, required=False),
             },
         ),
         400: ERROR_RESPONSE,
@@ -131,12 +128,10 @@ def vehicle_details_for_enquiry(reg):
         logger.exception("Unexpected error in the DVSA lookup, saving enquiry without vehicle details")
         return {}
 
-    details = {
+    return {
         field: str(vehicle.get(field) or "")[: SellMyCarEnquiry._meta.get_field(field).max_length]
-        for field in ("make", "model", "colour", "fuel_type")
+        for field in ("make", "model")
     }
-    details["year"] = vehicle.get("year")
-    return details
 
 
 def save_images(enquiry, uploads):

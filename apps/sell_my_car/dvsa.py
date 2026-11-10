@@ -1,7 +1,6 @@
 """Client for the DVSA MOT History API. Only this module talks to DVSA."""
 
 import logging
-import re
 
 import requests
 from django.conf import settings
@@ -18,9 +17,6 @@ VEHICLE_CACHE_SECONDS = 24 * 60 * 60
 VEHICLE_NOT_FOUND = "MOTH-NF-01"
 INVALID_REGISTRATION = "MOTH-IV-03"
 TOKEN_EXPIRED = "MOTH-FB-02"
-
-YEAR_SOURCES = ("manufactureYear", "manufactureDate", "registrationDate", "firstUsedDate")
-YEAR_PATTERN = re.compile(r"(?:19|20)\d{2}")
 
 
 class DvsaError(Exception):
@@ -48,7 +44,7 @@ def is_configured():
 
 
 def lookup_vehicle(reg):
-    """Return the five mapped vehicle fields, or {} if DVSA doesn't know the vehicle.
+    """Return the vehicle's make and model, or {} if DVSA doesn't know the vehicle.
 
     Raises InvalidRegistration or LookupUnavailable. Only a real match is
     cached, so a failure or a not-yet-listed vehicle is looked up again.
@@ -154,18 +150,4 @@ def _get_token():
 
 
 def _map_vehicle(body):
-    return {
-        "make": body.get("make"),
-        "model": body.get("model"),
-        "year": _map_year(body),
-        "colour": body.get("primaryColour"),
-        "fuel_type": body.get("fuelType"),
-    }
-
-
-def _map_year(body):
-    for source in YEAR_SOURCES:
-        match = YEAR_PATTERN.search(str(body.get(source) or ""))
-        if match:
-            return int(match.group())
-    return None
+    return {"make": body.get("make"), "model": body.get("model")}

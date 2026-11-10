@@ -23,51 +23,17 @@ class TestVehicleMapping:
         dvsa_ready.get.return_value = dvsa_response(200, VEHICLE_WITH_MOT_TESTS)
         response = lookup(api_client)
         assert response.status_code == 200
-        assert response.json() == {
-            "make": "CITROEN",
-            "model": "C3",
-            "year": 2009,
-            "colour": "SILVER",
-            "fuel_type": "DIESEL",
-        }
+        assert response.json() == {"make": "CITROEN", "model": "C3"}
 
     def test_newly_registered_vehicle(self, api_client, dvsa_ready):
         dvsa_ready.get.return_value = dvsa_response(200, NEWLY_REGISTERED_VEHICLE)
         response = lookup(api_client)
         assert response.status_code == 200
-        assert response.json() == {
-            "make": "TESLA",
-            "model": "MODEL 3",
-            "year": 2025,
-            "colour": "WHITE",
-            "fuel_type": "ELECTRIC",
-        }
-
-    @pytest.mark.parametrize(
-        "fields, year",
-        [
-            ({"manufactureYear": 2012, "manufactureDate": "2009.11.30"}, 2012),
-            ({"manufactureDate": "2011-04-01"}, 2011),
-            ({"registrationDate": "2010.02.15", "firstUsedDate": "2009.01.01"}, 2010),
-            ({"firstUsedDate": "2008.06.20"}, 2008),
-            ({"manufactureYear": None, "manufactureDate": "", "firstUsedDate": "2007.01.01"}, 2007),
-            ({}, None),
-            ({"manufactureYear": "unknown"}, None),
-        ],
-    )
-    def test_year_fallback_order(self, api_client, dvsa_ready, fields, year):
-        dvsa_ready.get.return_value = dvsa_response(200, {"make": "FORD", **fields})
-        assert lookup(api_client).json()["year"] == year
+        assert response.json() == {"make": "TESLA", "model": "MODEL 3"}
 
     def test_missing_fields_are_null(self, api_client, dvsa_ready):
         dvsa_ready.get.return_value = dvsa_response(200, {"make": "FORD"})
-        assert lookup(api_client).json() == {
-            "make": "FORD",
-            "model": None,
-            "year": None,
-            "colour": None,
-            "fuel_type": None,
-        }
+        assert lookup(api_client).json() == {"make": "FORD", "model": None}
 
 
 class TestDvsaRequest:

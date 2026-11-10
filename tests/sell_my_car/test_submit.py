@@ -110,14 +110,10 @@ class TestDvsaDuringSubmit:
         enquiry = SellMyCarEnquiry.objects.get()
         assert enquiry.make == "CITROEN"
         assert enquiry.model == "C3"
-        assert enquiry.year == 2009
-        assert enquiry.colour == "SILVER"
-        assert enquiry.fuel_type == "DIESEL"
 
     def assert_saved_blank(self):
         enquiry = SellMyCarEnquiry.objects.get()
-        assert (enquiry.make, enquiry.model, enquiry.colour, enquiry.fuel_type) == ("", "", "", "")
-        assert enquiry.year is None
+        assert (enquiry.make, enquiry.model) == ("", "")
 
     def test_missing_credentials_still_saves(self, api_client, dvsa_http):
         assert submit(api_client).status_code == 201
@@ -141,11 +137,11 @@ class TestDvsaDuringSubmit:
         self.assert_saved_blank()
 
     def test_oversized_dvsa_values_cannot_block_the_customer(self, api_client, dvsa_ready):
-        dvsa_ready.get.return_value = dvsa_response(200, {"make": "X" * 500, "primaryColour": "Y" * 500})
+        dvsa_ready.get.return_value = dvsa_response(200, {"make": "X" * 500, "model": "Y" * 500})
         assert submit(api_client).status_code == 201
         enquiry = SellMyCarEnquiry.objects.get()
         assert len(enquiry.make) == 100
-        assert len(enquiry.colour) == 50
+        assert len(enquiry.model) == 100
 
     def test_uses_the_lookup_cache(self, api_client, dvsa_ready):
         dvsa_ready.get.return_value = dvsa_response(200, VEHICLE_WITH_MOT_TESTS)

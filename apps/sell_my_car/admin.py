@@ -58,7 +58,7 @@ class SellMyCarEnquiryAdmin(admin.ModelAdmin):
     list_filter = ["status", "appointment_date", "created_at"]
     search_fields = ["reg", "name", "email", "phone"]
     readonly_fields = [
-        "reg", "mileage", "make", "model", "year", "colour", "fuel_type",
+        "reg", "mileage", "make", "model",
         "name", "email", "phone", "address", "message",
         "appointment_date", "appointment_time", "created_at",
     ]

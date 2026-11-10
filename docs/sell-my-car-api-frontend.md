@@ -65,10 +65,10 @@ No login or `Authorization` header is needed on any of these.
 | `reg` | Uppercase with no spaces, 2 to 7 letters or digits |
 | `mileage` | Whole number from 1 to 9,999,999. Validated but not used for the lookup |
 
-A successful lookup returns these five fields. Any of them can be `null`.
+A successful lookup returns these two fields. Either of them can be `null`.
 
 ```json
-{ "make": "CITROEN", "model": "C3", "year": 2009, "colour": "SILVER", "fuel_type": "DIESEL" }
+{ "make": "CITROEN", "model": "C3" }
 ```
 
 | Response | Body | What the front end does |
@@ -80,7 +80,7 @@ A successful lookup returns these five fields. Any of them can be `null`.
 | `429` | `{ "error": "Too many requests. Please try again later." }` | Carries on without car details |
 | `503` | `{ "error": "Vehicle lookup is temporarily unavailable." }` | Carries on without car details |
 
-Limited to 30 requests per hour per IP. The API never returns `body_type`, `transmission` or `estimated_value`, so those parts of the page stay hidden.
+Limited to 30 requests per hour per IP. The API never returns `year`, `colour`, `fuel_type`, `body_type`, `transmission` or `estimated_value`, so those parts of the page stay hidden.
 
 ---
 
@@ -111,7 +111,7 @@ Send `multipart/form-data`.
 | `appointment_time` | `12:00` | 30-minute slot start from `09:00` to `17:30`, not already started if the date is today |
 | `images` | files, repeated key | Optional, up to 10, each up to 10MB, PNG, JPEG, GIF or WEBP |
 
-The file's real format is checked, so a renamed file is rejected. Make, model, year, colour and fuel are looked up by the backend and are not sent. If DVSA is down, the enquiry is still saved without them.
+The file's real format is checked, so a renamed file is rejected. Make and model are looked up by the backend and are not sent. If DVSA is down, the enquiry is still saved without them.
 
 | Response | Body |
 |----------|------|

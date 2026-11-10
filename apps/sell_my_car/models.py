@@ -26,9 +26,6 @@ class SellMyCarEnquiry(models.Model):
 
     make = models.CharField(max_length=100, blank=True)
     model = models.CharField(max_length=100, blank=True)
-    year = models.PositiveIntegerField(null=True, blank=True)
-    colour = models.CharField(max_length=50, blank=True)
-    fuel_type = models.CharField(max_length=50, blank=True)
 
     name = models.CharField(max_length=150)
     email = models.EmailField()
