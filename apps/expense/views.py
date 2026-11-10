@@ -1,7 +1,7 @@
 import csv
 from decimal import Decimal
 
-from django.db.models import Q
+from django.db.models import Prefetch, Q
 from django.http import HttpResponse
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view
@@ -9,17 +9,18 @@ from rest_framework import generics
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import COST_FIELDS, ExpenseCar
+from .models import COST_FIELDS, ExpenseCar, ExpenseColumn, ExpenseColumnValue
 from .permissions import CanUseExpenses
 from .serializers import (
     ExpenseCarCreateSerializer,
     ExpenseCarSerializer,
     ExpenseCarUpdateSerializer,
+    ExpenseColumnSerializer,
     ExpenseSummarySerializer,
 )
 
 CSV_FILENAME = 'noorrix-car-expenses.csv'
-CSV_HEADER = [
+CSV_HEADER_UP_TO_COSTS = [
     'Car',
     'Status',
     'Date Added',
@@ -36,6 +37,8 @@ CSV_HEADER = [
     'Exhaust',
     'Clutch and Gearbox',
     'Other',
+]
+CSV_HEADER_FROM_TOTAL = [
     'Total Cost',
     'Tyre Tread Depth (mm)',
     'Sale Price',
@@ -72,6 +75,13 @@ def filter_cars(queryset, params):
     return queryset
 
 
+def cars_with_extra_values():
+    """Load every extra value in one query instead of one query per car."""
+    return ExpenseCar.objects.prefetch_related(
+        Prefetch('column_values', queryset=ExpenseColumnValue.objects.select_related('column'))
+    )
+
+
 def csv_number(value):
     return '' if value is None else f'{value:.2f}'
 
@@ -85,18 +95,39 @@ def csv_text(value):
     return f"'{value}" if value.startswith(FORMULA_PREFIXES) else value
 
 
-def csv_row(car):
+def csv_header(cost_columns, info_columns):
+    return [
+        *CSV_HEADER_UP_TO_COSTS,
+        *(csv_text(column.name) for column in cost_columns),
+        *CSV_HEADER_FROM_TOTAL,
+        *(csv_text(column.name) for column in info_columns),
+    ]
+
+
+def csv_row(car, cost_columns, info_columns):
+    values = {value.column_id: value for value in car.column_values.all()}
+
+    def extra_cost(column):
+        value = values.get(column.pk)
+        return csv_number(value.amount if value else None)
+
+    def extra_info(column):
+        value = values.get(column.pk)
+        return csv_text(value.text if value else '')
+
     return [
         csv_text(car.name),
         car.get_status_display(),
         csv_date(car.date_added),
         *(csv_number(getattr(car, field)) for field in COST_FIELDS),
+        *(extra_cost(column) for column in cost_columns),
         csv_number(car.total_cost),
         csv_number(car.tyre_tread_depth),
         csv_number(car.sale_price),
         csv_number(car.profit),
         csv_date(car.date_sold),
         csv_text(car.notes),
+        *(extra_info(column) for column in info_columns),
     ]
 
 
@@ -119,7 +150,7 @@ class ExpenseCarListCreateView(generics.ListCreateAPIView):
     pagination_class = None
 
     def get_queryset(self):
-        return filter_cars(ExpenseCar.objects.all(), self.request.query_params)
+        return filter_cars(cars_with_extra_values(), self.request.query_params)
 
     def get_serializer_class(self):
         if self.request.method == 'POST':
@@ -142,6 +173,39 @@ class ExpenseCarUpdateView(generics.UpdateAPIView):
     http_method_names = ['put', 'options']
 
 
+@extend_schema_view(
+    get=extend_schema(
+        tags=['Expenses'],
+        summary='List the extra columns, oldest first',
+        responses=ExpenseColumnSerializer(many=True),
+    ),
+    post=extend_schema(
+        tags=['Expenses'],
+        summary='Add an extra column',
+        request=ExpenseColumnSerializer,
+        responses={201: ExpenseColumnSerializer},
+    ),
+)
+class ExpenseColumnListCreateView(generics.ListCreateAPIView):
+    permission_classes = [CanUseExpenses]
+    pagination_class = None
+    queryset = ExpenseColumn.objects.all()
+    serializer_class = ExpenseColumnSerializer
+
+
+@extend_schema_view(
+    delete=extend_schema(
+        tags=['Expenses'],
+        summary='Delete an extra column and every value in it',
+        responses={204: None},
+    ),
+)
+class ExpenseColumnDeleteView(generics.DestroyAPIView):
+    permission_classes = [CanUseExpenses]
+    queryset = ExpenseColumn.objects.all()
+    serializer_class = ExpenseColumnSerializer
+
+
 @extend_schema(
     tags=['Expenses'],
     summary='The four summary cards, always covering every car',
@@ -151,7 +215,7 @@ class ExpenseSummaryView(APIView):
     permission_classes = [CanUseExpenses]
 
     def get(self, request):
-        cars = list(ExpenseCar.objects.all())
+        cars = list(cars_with_extra_values())
         in_stock = [car for car in cars if car.status == ExpenseCar.STATUS_AVAILABLE]
         sold = [car for car in cars if car.status == ExpenseCar.STATUS_SOLD]
 
@@ -188,7 +252,11 @@ class ExpenseExportView(APIView):
         response.write('﻿')
 
         writer = csv.writer(response)
-        writer.writerow(CSV_HEADER)
-        for car in filter_cars(ExpenseCar.objects.all(), request.query_params):
-            writer.writerow(csv_row(car))
+        columns = list(ExpenseColumn.objects.all())
+        cost_columns = [column for column in columns if column.is_cost]
+        info_columns = [column for column in columns if not column.is_cost]
+
+        writer.writerow(csv_header(cost_columns, info_columns))
+        for car in filter_cars(cars_with_extra_values(), request.query_params):
+            writer.writerow(csv_row(car, cost_columns, info_columns))
         return response

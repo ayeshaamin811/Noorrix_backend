@@ -10,7 +10,7 @@ CAR_KEYS = [
     'id', 'name', 'status', 'date_added', 'date_sold',
     'purchase', 'delivery', 'mot', 'wash', 'denting_painting', 'oil_coolant_repairs', 'fuel',
     'timing_chain', 'electrical_work', 'brakes', 'exhaust', 'clutch_gearbox', 'other',
-    'tyre_tread_depth', 'sale_price', 'notes',
+    'tyre_tread_depth', 'sale_price', 'notes', 'custom_values',
 ]
 
 # The exact shape the Edit dialog sends: never a name, numbers as JSON numbers.

@@ -2,6 +2,7 @@ from decimal import Decimal
 
 from django.core.validators import MinValueValidator
 from django.db import models
+from django.db.models.functions import Lower
 
 # The fields that make up Total Cost. tyre_tread_depth and sale_price are
 # deliberately not here.
@@ -80,7 +81,16 @@ class ExpenseCar(models.Model):
 
     @property
     def total_cost(self):
-        return sum((getattr(self, field) or Decimal('0') for field in COST_FIELDS), Decimal('0'))
+        built_in = sum((getattr(self, field) or Decimal('0') for field in COST_FIELDS), Decimal('0'))
+        return built_in + self._extra_column_costs()
+
+    def _extra_column_costs(self):
+        if self.pk is None:  # A reverse relation can't be read before the first save.
+            return Decimal('0')
+        return sum(
+            (value.amount or Decimal('0') for value in self.column_values.all() if value.column.is_cost),
+            Decimal('0'),
+        )
 
     @property
     def profit(self):
@@ -88,3 +98,52 @@ class ExpenseCar(models.Model):
         if self.sale_price is None:
             return None
         return self.sale_price - self.total_cost
+
+
+class ExpenseColumn(models.Model):
+    """A column staff added to the cars table themselves."""
+
+    KIND_COST = 'cost'
+    KIND_INFO = 'info'
+    KIND_CHOICES = [
+        (KIND_COST, 'Cost'),
+        (KIND_INFO, 'Info'),
+    ]
+
+    name = models.CharField(max_length=30)
+    kind = models.CharField(max_length=10, choices=KIND_CHOICES)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['id']
+        constraints = [
+            models.UniqueConstraint(Lower('name'), name='unique_expense_column_name_ignoring_case'),
+        ]
+
+    def __str__(self):
+        return self.name
+
+    @property
+    def is_cost(self):
+        return self.kind == self.KIND_COST
+
+
+class ExpenseColumnValue(models.Model):
+    """One car's value in one extra column. A blank value has no row."""
+
+    car = models.ForeignKey(ExpenseCar, on_delete=models.CASCADE, related_name='column_values')
+    column = models.ForeignKey(ExpenseColumn, on_delete=models.CASCADE, related_name='values')
+    amount = models.DecimalField(max_digits=10, decimal_places=2, null=True)
+    text = models.CharField(max_length=255, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['car', 'column'], name='unique_expense_value_per_car_and_column'),
+        ]
+
+    def __str__(self):
+        return f'{self.column}: {self.api_value}'
+
+    @property
+    def api_value(self):
+        return f'{self.amount:.2f}' if self.column.is_cost else self.text
