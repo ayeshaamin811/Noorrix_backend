@@ -34,6 +34,7 @@ INSTALLED_APPS = [
     'apps.vehicle_sourcing.apps.VehicleSourcingConfig',
     'apps.delivery.apps.DeliveryConfig',
     'apps.expense.apps.ExpenseConfig',
+    'apps.sell_my_car.apps.SellMyCarConfig',
 ]
 
 MIDDLEWARE = [
@@ -143,6 +144,13 @@ STRIPE_WEBHOOK_SECRET = config('STRIPE_WEBHOOK_SECRET', default='')
 # STRIPE_WEBHOOK_SECRET=whsec_aaa,whsec_bbb
 STRIPE_WEBHOOK_SECRETS = [s.strip() for s in STRIPE_WEBHOOK_SECRET.split(',') if s.strip()]
 STRIPE_CURRENCY = config('STRIPE_CURRENCY', default='gbp')
+
+DVSA_TOKEN_URL = config('DVSA_TOKEN_URL', default='')
+DVSA_CLIENT_ID = config('DVSA_CLIENT_ID', default='')
+DVSA_CLIENT_SECRET = config('DVSA_CLIENT_SECRET', default='')
+DVSA_SCOPE = config('DVSA_SCOPE', default='https://tapi.dvsa.gov.uk/.default')
+DVSA_API_KEY = config('DVSA_API_KEY', default='')
+
 # Origins permitted as Stripe Checkout success/cancel redirect targets. Anything
 # not in this allow-list is rejected to prevent open-redirect abuse.
 PAYMENT_REDIRECT_ALLOWED_ORIGINS = [
