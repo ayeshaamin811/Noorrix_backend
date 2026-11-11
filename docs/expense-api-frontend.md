@@ -53,6 +53,7 @@ You need one staff account and one customer account. Create the customer on the 
 - [ ] A customer account can log in, gets the permission error, and sees no data.
 - [ ] Add a car, and it appears first with updated summary cards.
 - [ ] Edit a car, and the row and summary update after Save.
+- [ ] Delete a car, and it disappears from the table, the summary cards and the export.
 - [ ] A value the backend rejects shows its message under the field.
 - [ ] All, Available, Sold and search return the right cars.
 - [ ] Export downloads a correct CSV that opens in Excel.
@@ -95,10 +96,11 @@ Only accounts with `is_staff` can use the tracker. A staff login is created in D
 | GET | `/api/expenses/cars/?status=&search=` | List cars | `200` |
 | POST | `/api/expenses/cars/` | Add a car | `201` |
 | PUT | `/api/expenses/cars/<id>/` | Save a car | `200` |
+| DELETE | `/api/expenses/cars/<id>/` | Delete a car | `204` |
 | GET | `/api/expenses/summary/` | The four summary cards | `200` |
 | GET | `/api/expenses/export/?status=&search=` | Download CSV | `200` |
 
-There are no rename or delete endpoints. GET, PATCH and DELETE on `/api/expenses/cars/<id>/` return `405`.
+There is no rename endpoint. GET and PATCH on `/api/expenses/cars/<id>/` return `405`.
 
 ---
 
@@ -178,6 +180,16 @@ Send `status`, `date_added`, `date_sold`, `sale_price`, `tyre_tread_depth`, `not
 Don't send `name`. A missing `name` is fine, and a `name` in the body is ignored, so a car keeps its original name.
 
 Returns `200` with the full car JSON, or `404` if the car doesn't exist.
+
+---
+
+## `DELETE /api/expenses/cars/<id>/`
+
+Uses the same `car(id)` route as PUT and sends no body. It deletes the car and its values in any extra columns. The extra columns themselves stay.
+
+Returns `204` with no body, or `404` if the car doesn't exist, including a car that was already deleted. After a delete, the car is no longer in the list, the summary cards or the export.
+
+The delete is permanent and can't be undone, so the front end should ask staff to confirm first.
 
 ---
 

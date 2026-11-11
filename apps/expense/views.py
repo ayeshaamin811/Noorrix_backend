@@ -165,12 +165,17 @@ class ExpenseCarListCreateView(generics.ListCreateAPIView):
         request=ExpenseCarUpdateSerializer,
         responses=ExpenseCarSerializer,
     ),
+    delete=extend_schema(
+        tags=['Expenses'],
+        summary='Delete a tracker car and its extra-column values',
+        responses={204: None},
+    ),
 )
-class ExpenseCarUpdateView(generics.UpdateAPIView):
+class ExpenseCarUpdateView(generics.UpdateAPIView, generics.DestroyAPIView):
     permission_classes = [CanUseExpenses]
     queryset = ExpenseCar.objects.all()
     serializer_class = ExpenseCarUpdateSerializer
-    http_method_names = ['put', 'options']
+    http_method_names = ['put', 'delete', 'options']
 
 
 @extend_schema_view(

@@ -12,6 +12,7 @@ ENDPOINTS = [
     pytest.param('get', '/api/expenses/cars/', 200, id='list'),
     pytest.param('post', '/api/expenses/cars/', 201, id='create'),
     pytest.param('put', DETAIL, 200, id='update'),
+    pytest.param('delete', DETAIL, 204, id='delete'),
     pytest.param('get', '/api/expenses/summary/', 200, id='summary'),
     pytest.param('get', '/api/expenses/export/', 200, id='export'),
 ]
@@ -69,6 +70,14 @@ class TestWritesAreBlocked:
     def test_no_token_cannot_add_a_car(self):
         APIClient().post('/api/expenses/cars/', {'name': 'Ford Fiesta'}, format='json')
         assert ExpenseCar.objects.count() == 0
+
+    def test_customer_cannot_delete_a_car(self, auth_client, car):
+        assert auth_client.delete(f'/api/expenses/cars/{car.id}/').status_code == 403
+        assert ExpenseCar.objects.filter(pk=car.pk).exists()
+
+    def test_no_token_cannot_delete_a_car(self, car):
+        assert APIClient().delete(f'/api/expenses/cars/{car.id}/').status_code == 401
+        assert ExpenseCar.objects.filter(pk=car.pk).exists()
 
 
 def test_model_is_not_registered_in_admin():

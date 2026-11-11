@@ -268,11 +268,42 @@ class TestUpdate:
     def test_unknown_car_is_404(self, staff_client):
         assert staff_client.put(f'{CARS_URL}999999/', PUT_BODY, format='json').status_code == 404
 
-    @pytest.mark.parametrize('method', ['get', 'patch', 'delete'])
+    @pytest.mark.parametrize('method', ['get', 'patch'])
     def test_other_methods_are_not_allowed(self, staff_client, make_car, method):
         car = make_car()
         assert getattr(staff_client, method)(detail_url(car)).status_code == 405
         assert ExpenseCar.objects.filter(pk=car.pk).exists()
+
+
+@pytest.mark.django_db
+class TestDelete:
+    def test_removes_the_car_with_204_and_no_body(self, staff_client, make_car):
+        car = make_car()
+        response = staff_client.delete(detail_url(car))
+        assert response.status_code == 204
+        assert response.content == b''
+        assert not ExpenseCar.objects.filter(pk=car.pk).exists()
+
+    def test_leaves_other_cars_alone(self, staff_client, make_car):
+        gone, kept = make_car(name='Gone'), make_car(name='Kept')
+        staff_client.delete(detail_url(gone))
+        assert list(ExpenseCar.objects.values_list('name', flat=True)) == ['Kept']
+        assert ids(staff_client.get(CARS_URL)) == [kept.id]
+
+    def test_unknown_car_is_404(self, staff_client):
+        assert staff_client.delete(f'{CARS_URL}999999/').status_code == 404
+
+    def test_deleting_twice_is_404(self, staff_client, make_car):
+        car = make_car()
+        staff_client.delete(detail_url(car))
+        assert staff_client.delete(detail_url(car)).status_code == 404
+
+    def test_put_still_works(self, staff_client, make_car):
+        car = make_car()
+        response = staff_client.put(detail_url(car), PUT_BODY, format='json')
+        assert response.status_code == 200
+        car.refresh_from_db()
+        assert car.status == ExpenseCar.STATUS_SOLD
 
 
 @pytest.mark.django_db

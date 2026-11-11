@@ -208,6 +208,55 @@ class TestDeleteColumn:
 
 
 @pytest.mark.django_db
+class TestDeleteCarWithColumns:
+    def test_removes_its_values_but_keeps_the_columns(self, staff_client, make_car, make_column, set_value):
+        car = make_car()
+        cost, info = make_column('Insurance', 'cost'), make_column('Keys', 'info')
+        set_value(car, cost, Decimal('10.00'))
+        set_value(car, info, 'Two')
+        assert staff_client.delete(car_url(car)).status_code == 204
+        assert not ExpenseCar.objects.filter(pk=car.pk).exists()
+        assert not ExpenseColumnValue.objects.exists()
+        assert list(ExpenseColumn.objects.values_list('name', flat=True)) == ['Insurance', 'Keys']
+
+    def test_leaves_other_cars_values_alone(self, staff_client, make_car, make_column, set_value):
+        gone, kept = make_car(name='Gone'), make_car(name='Kept')
+        column = make_column()
+        set_value(gone, column, Decimal('1.00'))
+        set_value(kept, column, Decimal('2.00'))
+        staff_client.delete(car_url(gone))
+        assert ExpenseColumnValue.objects.count() == 1
+        assert stored(kept, column).amount == Decimal('2.00')
+
+    def test_summary_no_longer_counts_it(self, staff_client, make_car, make_column, set_value):
+        column = make_column()
+        in_stock = make_car(name='In stock', purchase=Decimal('1000.00'))
+        sold = make_car(name='Sold', status='sold', purchase=Decimal('500.00'), sale_price=Decimal('900.00'))
+        kept = make_car(name='Kept', purchase=Decimal('100.00'))
+        set_value(in_stock, column, Decimal('50.00'))
+        set_value(sold, column, Decimal('25.00'))
+        assert staff_client.get(SUMMARY_URL).json() == {
+            'cars_in_stock': 2, 'cars_sold': 1, 'money_tied_up': '1150.00', 'profit_from_sold': '375.00',
+        }
+        staff_client.delete(car_url(in_stock))
+        staff_client.delete(car_url(sold))
+        assert staff_client.get(SUMMARY_URL).json() == {
+            'cars_in_stock': 1, 'cars_sold': 0, 'money_tied_up': '100.00', 'profit_from_sold': '0.00',
+        }
+        assert ExpenseCar.objects.get().pk == kept.pk
+
+    def test_export_no_longer_includes_it(self, staff_client, make_car, make_column, set_value):
+        column = make_column()
+        gone, kept = make_car(name='Gone'), make_car(name='Kept')
+        set_value(gone, column, Decimal('1.00'))
+        set_value(kept, column, Decimal('2.00'))
+        staff_client.delete(car_url(gone))
+        rows = read_rows(staff_client.get(EXPORT_URL))
+        assert [row[0] for row in rows[1:]] == ['Kept']
+        assert 'Gone' not in staff_client.get(EXPORT_URL).content.decode('utf-8-sig')
+
+
+@pytest.mark.django_db
 class TestCarJson:
     def test_list_has_values_keyed_by_string_id(self, staff_client, make_car, make_column, set_value):
         car = make_car()
