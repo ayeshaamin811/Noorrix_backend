@@ -1,10 +1,11 @@
 from datetime import date, time
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import pytest
 from django.core.cache import cache
 
+from apps.sell_my_car import dvla
 from apps.sell_my_car.models import SellMyCarEnquiry
 
 from .helpers import NOW, dvsa_response
@@ -28,6 +29,7 @@ def isolated_environment(settings, tmp_path):
     settings.MEDIA_ROOT = tmp_path
     settings.ADMIN_EMAIL = "owner@noorrix.test"
     settings.DEFAULT_FROM_EMAIL = "Noorrix Motors <noreply@noorrix.test>"
+    settings.DVLA_API_KEY = ""
     settings.DVSA_TOKEN_URL = ""
     settings.DVSA_CLIENT_ID = ""
     settings.DVSA_CLIENT_SECRET = ""
@@ -57,21 +59,58 @@ def email_thread():
 
 
 @pytest.fixture(autouse=True)
-def dvsa_http():
-    """Any DVSA call a test didn't set up fails instead of reaching the network."""
-    unexpected = AssertionError("This test did not expect a DVSA call")
-    with patch("apps.sell_my_car.dvsa.requests.post", side_effect=unexpected) as post:
-        with patch("apps.sell_my_car.dvsa.requests.get", side_effect=unexpected) as get:
-            yield SimpleNamespace(post=post, get=get)
+def http():
+    """Stands in for the network, so a call a test didn't set up fails instead of going out.
+
+    DVLA and DVSA both use requests.post, so posts are routed by URL.
+    """
+
+    def unexpected(name):
+        return Mock(side_effect=AssertionError(f"This test did not expect a {name} call"))
+
+    fakes = SimpleNamespace(
+        dvla=unexpected("DVLA"),
+        dvsa_token=unexpected("DVSA token"),
+        dvsa_vehicle=unexpected("DVSA vehicle"),
+    )
+
+    def post(url, *args, **kwargs):
+        target = fakes.dvla if url == dvla.VEHICLE_URL else fakes.dvsa_token
+        return target(url, *args, **kwargs)
+
+    def get(*args, **kwargs):
+        return fakes.dvsa_vehicle(*args, **kwargs)
+
+    with patch("requests.post", side_effect=post), patch("requests.get", side_effect=get):
+        yield fakes
+
+
+@pytest.fixture
+def dvla_post(http):
+    return http.dvla
+
+
+@pytest.fixture
+def dvla_ready(settings, dvla_post):
+    """A configured key. Set return_value or side_effect for DVLA's reply."""
+    settings.DVLA_API_KEY = "the-api-key"
+    dvla_post.side_effect = None
+    return dvla_post
+
+
+@pytest.fixture
+def dvsa_http(http):
+    return SimpleNamespace(post=http.dvsa_token, get=http.dvsa_vehicle)
 
 
 @pytest.fixture
 def dvsa_ready(settings, dvsa_http):
+    """Configured credentials and a token. Set dvsa_ready.get for DVSA's reply."""
     settings.DVSA_TOKEN_URL = "https://login.example/tenant-id/oauth2/v2.0/token"
     settings.DVSA_CLIENT_ID = "the-client-id"
     settings.DVSA_CLIENT_SECRET = "the-client-secret"
     settings.DVSA_SCOPE = "https://tapi.dvsa.gov.uk/.default"
-    settings.DVSA_API_KEY = "the-api-key"
+    settings.DVSA_API_KEY = "the-dvsa-api-key"
     dvsa_http.post.side_effect = None
     dvsa_http.post.return_value = dvsa_response(body={"access_token": "the-token", "expires_in": 3600})
     dvsa_http.get.side_effect = None

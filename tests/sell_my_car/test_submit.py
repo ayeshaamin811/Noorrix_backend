@@ -10,10 +10,11 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from apps.sell_my_car.models import SellMyCarEnquiry, SellMyCarImage
 
 from .helpers import (
+    DVLA_VEHICLE,
     SUBMIT_URL,
-    VEHICLE_WITH_MOT_TESTS,
-    dvsa_error,
-    dvsa_response,
+    dvla_error,
+    dvla_response,
+    gateway_error,
     image_file,
     submit,
 )
@@ -103,51 +104,55 @@ class TestSuccess:
 
 
 @pytest.mark.django_db
-class TestDvsaDuringSubmit:
-    def test_saves_vehicle_details(self, api_client, dvsa_ready):
-        dvsa_ready.get.return_value = dvsa_response(200, VEHICLE_WITH_MOT_TESTS)
+class TestDvlaDuringSubmit:
+    def test_saves_the_make_and_leaves_the_model_blank(self, api_client, dvla_ready):
+        dvla_ready.return_value = dvla_response(200, DVLA_VEHICLE)
         assert submit(api_client).status_code == 201
         enquiry = SellMyCarEnquiry.objects.get()
-        assert enquiry.make == "CITROEN"
-        assert enquiry.model == "C3"
+        assert (enquiry.make, enquiry.model) == ("CITROEN", "")
 
     def assert_saved_blank(self):
         enquiry = SellMyCarEnquiry.objects.get()
         assert (enquiry.make, enquiry.model) == ("", "")
 
-    def test_missing_credentials_still_saves(self, api_client, dvsa_http):
+    def test_missing_key_still_saves(self, api_client, dvla_post):
         assert submit(api_client).status_code == 201
         self.assert_saved_blank()
-        dvsa_http.get.assert_not_called()
+        dvla_post.assert_not_called()
 
-    def test_dvsa_down_still_saves(self, api_client, dvsa_ready):
-        dvsa_ready.get.side_effect = requests.ConnectionError()
+    def test_dvla_down_still_saves(self, api_client, dvla_ready):
+        dvla_ready.side_effect = requests.ConnectionError()
         assert submit(api_client).status_code == 201
         self.assert_saved_blank()
 
-    @pytest.mark.parametrize("code", ["MOTH-NF-01", "MOTH-IV-03", "MOTH-RL-01"])
-    def test_dvsa_error_codes_still_save(self, api_client, dvsa_ready, code):
-        dvsa_ready.get.return_value = dvsa_error(code)
+    @pytest.mark.parametrize(
+        "vehicle_response",
+        [
+            pytest.param(dvla_error(404, "Vehicle Not Found"), id="not-found"),
+            pytest.param(dvla_error(400, "Bad Request"), id="invalid-reg"),
+            pytest.param(gateway_error(429, "Too Many Requests"), id="rate-limited"),
+        ],
+    )
+    def test_dvla_errors_still_save(self, api_client, dvla_ready, vehicle_response):
+        dvla_ready.return_value = vehicle_response
         assert submit(api_client).status_code == 201
         self.assert_saved_blank()
 
     def test_unexpected_lookup_crash_still_saves(self, api_client):
-        with patch("apps.sell_my_car.views.dvsa.lookup_vehicle", side_effect=RuntimeError("boom")):
+        with patch("apps.sell_my_car.views.vehicle_lookup.lookup_vehicle", side_effect=RuntimeError("boom")):
             assert submit(api_client).status_code == 201
         self.assert_saved_blank()
 
-    def test_oversized_dvsa_values_cannot_block_the_customer(self, api_client, dvsa_ready):
-        dvsa_ready.get.return_value = dvsa_response(200, {"make": "X" * 500, "model": "Y" * 500})
+    def test_oversized_make_cannot_block_the_customer(self, api_client, dvla_ready):
+        dvla_ready.return_value = dvla_response(200, {"make": "X" * 500})
         assert submit(api_client).status_code == 201
-        enquiry = SellMyCarEnquiry.objects.get()
-        assert len(enquiry.make) == 100
-        assert len(enquiry.model) == 100
+        assert len(SellMyCarEnquiry.objects.get().make) == 100
 
-    def test_uses_the_lookup_cache(self, api_client, dvsa_ready):
-        dvsa_ready.get.return_value = dvsa_response(200, VEHICLE_WITH_MOT_TESTS)
+    def test_uses_the_lookup_cache(self, api_client, dvla_ready):
+        dvla_ready.return_value = dvla_response(200, DVLA_VEHICLE)
         api_client.get("/api/sell-my-car/lookup/", {"reg": "AB12CDE", "mileage": "10220"})
         submit(api_client)
-        assert dvsa_ready.get.call_count == 1
+        assert dvla_ready.call_count == 1
 
 
 @pytest.mark.django_db

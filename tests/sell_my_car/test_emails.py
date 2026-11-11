@@ -4,33 +4,35 @@ import pytest
 
 from apps.sell_my_car.models import SellMyCarEnquiry, SellMyCarImage
 
-from .helpers import VEHICLE_WITH_MOT_TESTS, dvsa_response, image_file, submit
+from .helpers import DVLA_VEHICLE, dvla_response, email_to, image_file, submit
 
 OWNER = "owner@noorrix.test"
 CUSTOMER = "alex@example.com"
 
 
-def email_to(resend_send, address):
-    return next(call.args[0] for call in resend_send.call_args_list if call.args[0]["to"] == [address])
-
-
 @pytest.mark.django_db
 class TestOwnerEmail:
-    def test_has_reply_to_and_every_detail(self, api_client, dvsa_ready, resend_send):
-        dvsa_ready.get.return_value = dvsa_response(200, VEHICLE_WITH_MOT_TESTS)
+    def test_has_reply_to_and_every_detail(self, api_client, dvla_ready, resend_send):
+        dvla_ready.return_value = dvla_response(200, DVLA_VEHICLE)
         submit(api_client)
         email = email_to(resend_send, OWNER)
         assert email["from"] == "Noorrix Motors <noreply@noorrix.test>"
         assert email["reply_to"] == [CUSTOMER]
-        assert "AB12CDE" in email["subject"]
+        assert email["subject"] == "[Sell My Car] AB12CDE CITROEN"
         for value in (
-            "AB12CDE", "CITROEN", "C3", "10,220 miles", "Alex Smith",
+            "AB12CDE", "CITROEN", "10,220 miles", "Alex Smith",
             CUSTOMER, "+447701910159", "1 High Street, Bedford MK40 1AA", "Full service history.",
             "Tuesday 3 November 2026 at 12:00 (UK time)",
         ):
             assert value in email["html"]
         for removed in (">Year<", ">Colour<", ">Fuel<", "2009", "SILVER", "DIESEL"):
             assert removed not in email["html"]
+
+    def test_model_shows_not_available(self, api_client, dvla_ready, resend_send):
+        dvla_ready.return_value = dvla_response(200, DVLA_VEHICLE)
+        submit(api_client)
+        assert ">Model</td>" in email_to(resend_send, OWNER)["html"]
+        assert email_to(resend_send, OWNER)["html"].count("Not available") == 1
 
     def test_photos_are_thumbnails_linking_to_full_images(self, api_client, resend_send):
         submit(api_client, images=[image_file(), image_file()])
@@ -51,11 +53,11 @@ class TestOwnerEmail:
 
 @pytest.mark.django_db
 class TestCustomerEmail:
-    def test_content_when_the_car_is_known(self, api_client, dvsa_ready, resend_send):
-        dvsa_ready.get.return_value = dvsa_response(200, VEHICLE_WITH_MOT_TESTS)
+    def test_content_when_the_car_is_known(self, api_client, dvla_ready, resend_send):
+        dvla_ready.return_value = dvla_response(200, DVLA_VEHICLE)
         submit(api_client)
         email = email_to(resend_send, CUSTOMER)
-        for value in ("AB12CDE", "CITROEN C3", "10,220 miles", "Tuesday 3 November 2026 at 12:00 (UK time)"):
+        for value in ("AB12CDE", "CITROEN", "10,220 miles", "Tuesday 3 November 2026 at 12:00 (UK time)"):
             assert value in email["html"]
         assert "review" in email["html"]
         assert "offer" in email["html"]
@@ -86,8 +88,8 @@ class TestEmailSafety:
         assert "&lt;script&gt;" in owner_html
         assert "&lt;script&gt;" in customer_html
 
-    def test_dvsa_values_are_escaped(self, api_client, dvsa_ready, resend_send):
-        dvsa_ready.get.return_value = dvsa_response(200, {"make": "<b>FORD</b>", "model": "<i>KA</i>"})
+    def test_dvla_values_are_escaped(self, api_client, dvla_ready, resend_send):
+        dvla_ready.return_value = dvla_response(200, {"make": "<b>FORD</b>"})
         submit(api_client)
         assert "<b>FORD" not in email_to(resend_send, OWNER)["html"]
         assert "<b>FORD" not in email_to(resend_send, CUSTOMER)["html"]

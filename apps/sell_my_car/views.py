@@ -11,7 +11,7 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from . import dvsa
+from . import vehicle_lookup
 from .emails import send_enquiry_emails
 from .models import SellMyCarEnquiry, SellMyCarImage
 from .serializers import SellMyCarSubmitSerializer, VehicleQuerySerializer
@@ -44,7 +44,11 @@ class ThrottleErrorMixin:
             name="SellMyCarVehicle",
             fields={
                 "make": serializers.CharField(allow_null=True, required=False),
-                "model": serializers.CharField(allow_null=True, required=False),
+                "model": serializers.CharField(
+                    allow_null=True,
+                    required=False,
+                    help_text="Null unless DVSA is set up and knows the car. DVLA doesn't provide the model.",
+                ),
             },
         ),
         400: ERROR_RESPONSE,
@@ -64,13 +68,13 @@ class SellMyCarLookupView(ThrottleErrorMixin, APIView):
             return Response({"error": first_messages[0]}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            vehicle = dvsa.lookup_vehicle(serializer.validated_data["reg"])
-        except dvsa.InvalidRegistration:
+            vehicle = vehicle_lookup.lookup_vehicle(serializer.validated_data["reg"])
+        except vehicle_lookup.InvalidRegistration:
             return Response(
                 {"error": "We couldn't find a vehicle with that registration."},
                 status=status.HTTP_404_NOT_FOUND,
             )
-        except dvsa.LookupUnavailable:
+        except vehicle_lookup.LookupUnavailable:
             return Response(
                 {"error": "Vehicle lookup is temporarily unavailable."},
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -119,13 +123,13 @@ class SellMyCarAvailabilityView(APIView):
 
 
 def vehicle_details_for_enquiry(reg):
-    """The enquiry's vehicle columns. A customer must never be blocked by DVSA."""
+    """The enquiry's vehicle columns. A customer must never be blocked by the lookup."""
     try:
-        vehicle = dvsa.lookup_vehicle(reg)
-    except dvsa.DvsaError:
+        vehicle = vehicle_lookup.lookup_vehicle(reg)
+    except vehicle_lookup.VehicleLookupError:
         return {}
     except Exception:
-        logger.exception("Unexpected error in the DVSA lookup, saving enquiry without vehicle details")
+        logger.exception("Unexpected error in the vehicle lookup, saving enquiry without vehicle details")
         return {}
 
     return {

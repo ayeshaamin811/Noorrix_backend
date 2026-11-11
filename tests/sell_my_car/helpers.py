@@ -13,6 +13,44 @@ AVAILABILITY_URL = "/api/sell-my-car/availability/"
 NOW = datetime(2026, 11, 2, 11, 10, tzinfo=timezone.utc)
 TODAY = date(2026, 11, 2)
 
+# The shape DVLA returns. It has no model.
+DVLA_VEHICLE = {
+    "registrationNumber": "AB12CDE",
+    "taxStatus": "Taxed",
+    "taxDueDate": "2027-10-01",
+    "motStatus": "Valid",
+    "make": "CITROEN",
+    "yearOfManufacture": 2009,
+    "engineCapacity": 1398,
+    "co2Emissions": 114,
+    "fuelType": "DIESEL",
+    "markedForExport": False,
+    "colour": "SILVER",
+    "typeApproval": "M1",
+    "dateOfLastV5CIssued": "2026-10-13",
+    "motExpiryDate": "2027-10-04",
+    "wheelplan": "2 AXLE RIGID BODY",
+    "monthOfFirstRegistration": "2010-03",
+}
+
+
+def dvla_response(status=200, body=None):
+    response = Mock(status_code=status)
+    response.json.return_value = body
+    return response
+
+
+def dvla_error(status, title, detail=""):
+    """DVLA's own error body, used for its 400, 404, 500 and 503."""
+    error = {"status": str(status), "code": str(status), "title": title, "detail": detail}
+    return dvla_response(status, {"errors": [error]})
+
+
+def gateway_error(status, message):
+    """The DVLA gateway's error body, used for 403, 429 and a malformed request."""
+    return dvla_response(status, {"message": message})
+
+
 # The two shapes DVSA returns.
 VEHICLE_WITH_MOT_TESTS = {
     "registration": "AB12CDE",
@@ -38,15 +76,16 @@ NEWLY_REGISTERED_VEHICLE = {
     "dvlaId": "1234567",
 }
 
-
-def dvsa_response(status=200, body=None):
-    response = Mock(status_code=status)
-    response.json.return_value = body
-    return response
+# Both APIs' replies are faked the same way.
+dvsa_response = dvla_response
 
 
 def dvsa_error(code, status=400):
     return dvsa_response(status, {"errorCode": code, "errorMessage": "Nope", "requestId": "req-123"})
+
+
+def email_to(resend_send, address):
+    return next(call.args[0] for call in resend_send.call_args_list if call.args[0]["to"] == [address])
 
 
 def image_file(name="car.jpg", image_format="JPEG", content_type="image/jpeg", pad_to=None):

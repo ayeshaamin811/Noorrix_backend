@@ -145,6 +145,7 @@ STRIPE_WEBHOOK_SECRET = config('STRIPE_WEBHOOK_SECRET', default='')
 STRIPE_WEBHOOK_SECRETS = [s.strip() for s in STRIPE_WEBHOOK_SECRET.split(',') if s.strip()]
 STRIPE_CURRENCY = config('STRIPE_CURRENCY', default='gbp')
 
+DVLA_API_KEY = config('DVLA_API_KEY', default='')
 DVSA_TOKEN_URL = config('DVSA_TOKEN_URL', default='')
 DVSA_CLIENT_ID = config('DVSA_CLIENT_ID', default='')
 DVSA_CLIENT_SECRET = config('DVSA_CLIENT_SECRET', default='')
