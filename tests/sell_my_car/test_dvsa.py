@@ -15,15 +15,49 @@ REG = "AB12CDE"
 class TestVehicleMapping:
     def test_vehicle_with_mot_tests(self, dvsa_ready):
         dvsa_ready.get.return_value = dvsa_response(200, VEHICLE_WITH_MOT_TESTS)
-        assert dvsa.lookup_vehicle(REG) == {"make": "CITROEN", "model": "C3"}
+        assert dvsa.lookup_vehicle(REG) == {
+            "make": "CITROEN",
+            "model": "C3",
+            "year": 2009,
+            "colour": "SILVER",
+            "fuel_type": "DIESEL",
+        }
 
     def test_newly_registered_vehicle(self, dvsa_ready):
         dvsa_ready.get.return_value = dvsa_response(200, NEWLY_REGISTERED_VEHICLE)
-        assert dvsa.lookup_vehicle(REG) == {"make": "TESLA", "model": "MODEL 3"}
+        assert dvsa.lookup_vehicle(REG) == {
+            "make": "TESLA",
+            "model": "MODEL 3",
+            "year": 2025,
+            "colour": "WHITE",
+            "fuel_type": "ELECTRIC",
+        }
 
     def test_missing_fields_are_none(self, dvsa_ready):
-        dvsa_ready.get.return_value = dvsa_response(200, {"make": "FORD"})
-        assert dvsa.lookup_vehicle(REG) == {"make": "FORD", "model": None}
+        dvsa_ready.get.return_value = dvsa_response(200, {"make": "FORD", "primaryColour": ""})
+        assert dvsa.lookup_vehicle(REG) == {
+            "make": "FORD",
+            "model": None,
+            "year": None,
+            "colour": None,
+            "fuel_type": None,
+        }
+
+    @pytest.mark.parametrize(
+        "dates, year",
+        [
+            pytest.param({"manufactureDate": "2009-11-30", "registrationDate": "2010-02-15"}, 2009, id="manufacture-date"),
+            pytest.param({"manufactureDate": "2009.11.30"}, 2009, id="dotted-date"),
+            pytest.param({"manufactureYear": "2025"}, 2025, id="manufacture-year"),
+            pytest.param({"registrationDate": "2010-02-15"}, 2010, id="registration-date"),
+            pytest.param({"firstUsedDate": "2010-03-01"}, 2010, id="first-used-date"),
+            pytest.param({"manufactureDate": "unknown", "registrationDate": "2010-02-15"}, 2010, id="bad-then-good"),
+            pytest.param({"manufactureDate": "n/a"}, None, id="no-usable-date"),
+        ],
+    )
+    def test_year(self, dvsa_ready, dates, year):
+        dvsa_ready.get.return_value = dvsa_response(200, {"make": "FORD", **dates})
+        assert dvsa.lookup_vehicle(REG)["year"] == year
 
 
 class TestDvsaRequest:

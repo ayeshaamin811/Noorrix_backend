@@ -6,10 +6,10 @@ Front end: the `/sell-my-car` page. Every API call is in `src/lib/sellMyCar.js`.
 
 **Status:** the backend is live. The vehicle lookup can use two free government APIs:
 
-- **DVLA Vehicle Enquiry Service** gives the make only. It needs `DVLA_API_KEY`, which we have.
-- **DVSA MOT History API** gives the make and the model. It needs `DVSA_TOKEN_URL`, `DVSA_CLIENT_ID`, `DVSA_CLIENT_SECRET` and `DVSA_API_KEY` from DVSA's approval email. We don't have these yet.
+- **DVLA Vehicle Enquiry Service** gives the make, year, colour and fuel, but not the model. It needs `DVLA_API_KEY`, which we have.
+- **DVSA MOT History API** gives the make, model, year, colour and fuel. It needs `DVSA_TOKEN_URL`, `DVSA_CLIENT_ID`, `DVSA_CLIENT_SECRET` and `DVSA_API_KEY` from DVSA's approval email. We don't have these yet.
 
-When all the DVSA values are set, DVSA is asked first. If DVSA doesn't return the car, or is down, the make comes from DVLA and `model` is `null`. Until DVSA is set up, `model` is always `null` and staff ask the customer for it when they call. Adding the DVSA values needs no code change. If neither API is set up, the lookup returns `503` and the customer carries on without car details.
+When all the DVSA values are set, DVSA is asked first. If DVSA doesn't return the car, or is down, the details come from DVLA and `model` is `null`. Until DVSA is set up, `model` is always `null` and staff ask the customer for it when they call. Adding the DVSA values needs no code change. If neither API is set up, the lookup returns `503` and the customer carries on without car details.
 
 ---
 
@@ -38,7 +38,7 @@ Remove `NEXT_PUBLIC_SELL_MY_CAR_DEMO=true` if it is there, then restart `npm run
 
 **Real emails are sent if `RESEND_API_KEY` is set in the backend's `.env`**, so use an email address you own. Submissions are limited to 10 per hour per IP. Restarting the backend resets the count locally.
 
-- [ ] A real registration shows the confirm screen with the make.
+- [ ] A real registration shows the confirm screen with the make, year, colour and fuel.
 - [ ] Once the DVSA values are added, a real registration also shows the model.
 - [ ] Without `DVLA_API_KEY`, the lookup moves on without car details.
 - [ ] A complete submission shows the confirmation screen.
@@ -71,12 +71,16 @@ No login or `Authorization` header is needed on any of these.
 | `reg` | Uppercase with no spaces, 2 to 7 letters or digits |
 | `mileage` | Whole number from 1 to 9,999,999. Validated but not used for the lookup |
 
-A successful lookup returns these two fields. `model` is `null` when the make came from DVLA, because DVLA doesn't provide it.
+A successful lookup returns these five fields. `model` is `null` when the details came from DVLA, because DVLA doesn't provide it.
 
 ```json
-{ "make": "KIA", "model": "PICANTO" }
-{ "make": "KIA", "model": null }
+{ "make": "CITROEN", "model": "C3", "year": 2009, "colour": "SILVER", "fuel_type": "DIESEL" }
+{ "make": "CITROEN", "model": null, "year": 2009, "colour": "SILVER", "fuel_type": "DIESEL" }
 ```
+
+- `year` is a number, the year of manufacture.
+- Text values come in capitals, as the government APIs send them. The page's `vehicleTitle` already turns them into "Citroen" and "Silver".
+- Any field the API doesn't have is `null`.
 
 | Response | Body | What the front end does |
 |----------|------|-------------------------|
@@ -87,7 +91,7 @@ A successful lookup returns these two fields. `model` is `null` when the make ca
 | `429` | `{ "error": "Too many requests. Please try again later." }` | Carries on without car details |
 | `503` | `{ "error": "Vehicle lookup is temporarily unavailable." }` | Carries on without car details |
 
-Limited to 30 requests per hour per IP. The API never returns `year`, `colour`, `fuel_type`, `body_type`, `transmission` or `estimated_value`, so those parts of the page stay hidden.
+Limited to 30 requests per hour per IP. The API never returns `body_type`, `transmission` or `estimated_value`, because no free API provides them, so those parts of the page stay hidden.
 
 ---
 

@@ -1,8 +1,8 @@
 """The vehicle lookup the views use.
 
-DVSA gives the make and model but only once its credentials are set. DVLA
-gives the make only. DVSA is asked first when it is set up, and DVLA covers
-any car DVSA doesn't return.
+Both give the make, year, colour and fuel. Only DVSA gives the model, and
+only once its credentials are set. DVSA is asked first when it is set up,
+and DVLA covers any car DVSA doesn't return.
 """
 
 from . import dvla, dvsa
@@ -12,7 +12,7 @@ __all__ = ["InvalidRegistration", "LookupUnavailable", "VehicleLookupError", "lo
 
 
 def lookup_vehicle(reg):
-    """Return {"make", "model"}, or {} if the vehicle isn't known.
+    """Return {"make", "model", "year", "colour", "fuel_type"}, or {} if the vehicle isn't known.
 
     Only DVLA's errors reach the caller. Any DVSA failure falls back to DVLA,
     which holds every UK registration.

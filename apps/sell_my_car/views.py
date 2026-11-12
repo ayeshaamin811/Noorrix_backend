@@ -49,6 +49,11 @@ class ThrottleErrorMixin:
                     required=False,
                     help_text="Null unless DVSA is set up and knows the car. DVLA doesn't provide the model.",
                 ),
+                "year": serializers.IntegerField(
+                    allow_null=True, required=False, help_text="Year of manufacture."
+                ),
+                "colour": serializers.CharField(allow_null=True, required=False),
+                "fuel_type": serializers.CharField(allow_null=True, required=False),
             },
         ),
         400: ERROR_RESPONSE,

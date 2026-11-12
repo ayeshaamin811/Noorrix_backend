@@ -1,4 +1,4 @@
-"""DVSA and DVLA together: DVSA's make and model first, DVLA's make when DVSA misses."""
+"""DVSA and DVLA together: DVSA's details first, DVLA's when DVSA misses."""
 
 import pytest
 import requests
@@ -19,6 +19,9 @@ from .helpers import (
 
 OWNER = "owner@noorrix.test"
 
+FROM_DVSA = {"make": "CITROEN", "model": "C3", "year": 2009, "colour": "SILVER", "fuel_type": "DIESEL"}
+FROM_DVLA = {**FROM_DVSA, "model": None}
+
 
 def lookup(client, reg="AB12CDE"):
     return client.get(LOOKUP_URL, {"reg": reg, "mileage": "10220"})
@@ -29,12 +32,12 @@ class TestLookupWithBothApis:
         dvsa_ready.get.return_value = dvsa_response(200, VEHICLE_WITH_MOT_TESTS)
         response = lookup(api_client)
         assert response.status_code == 200
-        assert response.json() == {"make": "CITROEN", "model": "C3"}
+        assert response.json() == FROM_DVSA
         dvla_ready.assert_not_called()
 
     def test_dvsa_alone_is_enough(self, api_client, dvsa_ready):
         dvsa_ready.get.return_value = dvsa_response(200, VEHICLE_WITH_MOT_TESTS)
-        assert lookup(api_client).json() == {"make": "CITROEN", "model": "C3"}
+        assert lookup(api_client).json() == FROM_DVSA
 
     @pytest.mark.parametrize(
         "dvsa_reply",
@@ -51,17 +54,17 @@ class TestLookupWithBothApis:
         dvla_ready.return_value = dvla_response(200, DVLA_VEHICLE)
         response = lookup(api_client)
         assert response.status_code == 200
-        assert response.json() == {"make": "CITROEN", "model": None}
+        assert response.json() == FROM_DVLA
 
     def test_dvsa_down_falls_back_to_the_dvla_make(self, api_client, dvla_ready, dvsa_ready):
         dvsa_ready.get.side_effect = requests.Timeout()
         dvla_ready.return_value = dvla_response(200, DVLA_VEHICLE)
-        assert lookup(api_client).json() == {"make": "CITROEN", "model": None}
+        assert lookup(api_client).json() == FROM_DVLA
 
     def test_rejected_dvsa_secret_falls_back_to_the_dvla_make(self, api_client, dvla_ready, dvsa_ready):
         dvsa_ready.post.return_value = dvsa_response(401, {"error": "invalid_client"})
         dvla_ready.return_value = dvla_response(200, DVLA_VEHICLE)
-        assert lookup(api_client).json() == {"make": "CITROEN", "model": None}
+        assert lookup(api_client).json() == FROM_DVLA
 
     def test_neither_knowing_the_car_is_an_empty_object(self, api_client, dvla_ready, dvsa_ready):
         dvsa_ready.get.return_value = dvsa_error("MOTH-NF-01", 404)
@@ -77,7 +80,7 @@ class TestLookupWithBothApis:
 
     def test_dvsa_is_not_called_until_it_is_set_up(self, api_client, dvla_ready, dvsa_http):
         dvla_ready.return_value = dvla_response(200, DVLA_VEHICLE)
-        assert lookup(api_client).json() == {"make": "CITROEN", "model": None}
+        assert lookup(api_client).json() == FROM_DVLA
         dvsa_http.post.assert_not_called()
         dvsa_http.get.assert_not_called()
 

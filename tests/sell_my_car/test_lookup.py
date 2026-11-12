@@ -13,11 +13,35 @@ def lookup(client, reg="AB12CDE", mileage="10220", **extra):
 
 
 class TestVehicleMapping:
-    def test_returns_the_make_and_a_null_model(self, api_client, dvla_ready):
+    def test_returns_make_year_colour_fuel_and_a_null_model(self, api_client, dvla_ready):
         dvla_ready.return_value = dvla_response(200, DVLA_VEHICLE)
         response = lookup(api_client)
         assert response.status_code == 200
-        assert response.json() == {"make": "CITROEN", "model": None}
+        assert response.json() == {
+            "make": "CITROEN",
+            "model": None,
+            "year": 2009,
+            "colour": "SILVER",
+            "fuel_type": "DIESEL",
+        }
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            pytest.param({"make": "FORD"}, id="left-out"),
+            pytest.param({"make": "FORD", "yearOfManufacture": None, "colour": None, "fuelType": None}, id="null"),
+            pytest.param({"make": "FORD", "colour": "", "fuelType": ""}, id="blank"),
+        ],
+    )
+    def test_missing_details_are_null(self, api_client, dvla_ready, body):
+        dvla_ready.return_value = dvla_response(200, body)
+        assert lookup(api_client).json() == {
+            "make": "FORD",
+            "model": None,
+            "year": None,
+            "colour": None,
+            "fuel_type": None,
+        }
 
     @pytest.mark.parametrize("body", [{"registrationNumber": "AB12CDE"}, {"make": ""}, {"make": None}])
     def test_vehicle_without_a_make_is_an_empty_object(self, api_client, dvla_ready, body):

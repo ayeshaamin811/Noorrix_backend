@@ -26,10 +26,11 @@ class LookupUnavailable(VehicleLookupError):
 
 
 def lookup_vehicle(reg):
-    """Return the vehicle's make and model, or {} if DVLA doesn't know the vehicle.
+    """Return the vehicle's details, or {} if DVLA doesn't know the vehicle.
 
-    DVLA doesn't provide the model, so it is always None. It stays in the
-    result because the frontend reads both fields.
+    The keys are make, model, year, colour and fuel_type. DVLA doesn't
+    provide the model, so it is always None. It stays in the result because
+    the frontend reads it.
 
     Raises InvalidRegistration or LookupUnavailable. Only a real match is
     cached, so a failure or an unknown vehicle is looked up again.
@@ -71,6 +72,12 @@ def lookup_vehicle(reg):
     if not body.get("make"):
         return {}
 
-    vehicle = {"make": body["make"], "model": None}
+    vehicle = {
+        "make": body["make"],
+        "model": None,
+        "year": body.get("yearOfManufacture") or None,
+        "colour": body.get("colour") or None,
+        "fuel_type": body.get("fuelType") or None,
+    }
     cache.set(cache_key, vehicle, VEHICLE_CACHE_SECONDS)
     return vehicle

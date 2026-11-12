@@ -44,7 +44,9 @@ def is_configured():
 
 
 def lookup_vehicle(reg):
-    """Return the vehicle's make and model, or {} if DVSA doesn't know the vehicle.
+    """Return the vehicle's details, or {} if DVSA doesn't know the vehicle.
+
+    The keys are make, model, year, colour and fuel_type.
 
     Raises InvalidRegistration or LookupUnavailable. Only a real match is
     cached, so a failure or a not-yet-listed vehicle is looked up again.
@@ -150,4 +152,23 @@ def _get_token():
 
 
 def _map_vehicle(body):
-    return {"make": body.get("make"), "model": body.get("model")}
+    return {
+        "make": body.get("make"),
+        "model": body.get("model"),
+        "year": _year(body),
+        "colour": body.get("primaryColour") or None,
+        "fuel_type": body.get("fuelType") or None,
+    }
+
+
+def _year(body):
+    """The year of manufacture, or of first registration if that is all DVSA has.
+
+    A vehicle with MOT tests has full dates, such as 2009-11-30. A newly
+    registered one has manufactureYear only.
+    """
+    for field in ("manufactureDate", "manufactureYear", "registrationDate", "firstUsedDate"):
+        year = str(body.get(field) or "")[:4]
+        if len(year) == 4 and year.isdigit():
+            return int(year)
+    return None
