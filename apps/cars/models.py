@@ -29,6 +29,8 @@ class Transmission(models.TextChoices):
 
 
 class Colour(models.TextChoices):
+    """The colours admin suggests. Car.colour accepts any other colour too."""
+
     BLACK  = "Black", "Black"
     WHITE  = "White", "White"
     SILVER = "Silver", "Silver"
@@ -75,11 +77,14 @@ class Car(models.Model):
     body_type    = models.CharField(max_length=20, choices=BodyType.choices)
     fuel         = models.CharField(max_length=20, choices=FuelType.choices)
     transmission = models.CharField(max_length=20, choices=Transmission.choices)
-    colour       = models.CharField(max_length=20, choices=Colour.choices)
+    colour       = models.CharField(
+        max_length=20, blank=True, default="",
+        help_text='Pick one from the list or type any colour, e.g. "Bronze"',
+    )
 
     # ── Specs (numbers — front-end formats for display) ────────
     year          = models.PositiveIntegerField(help_text="Registration year, e.g. 2019")
-    engine_cc     = models.PositiveIntegerField(help_text="Engine size in CC, e.g. 1995")
+    engine_cc     = models.PositiveIntegerField(null=True, blank=True, help_text="Engine size in CC, e.g. 1995")
     engine        = models.CharField(max_length=20, blank=True, help_text='Display engine, e.g. "2.0L"')
     doors         = models.PositiveSmallIntegerField(default=5)
     seats         = models.PositiveSmallIntegerField(default=5)

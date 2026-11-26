@@ -2,8 +2,9 @@ from django import forms
 from django.contrib import admin, messages
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import path
+from django.utils.html import format_html, format_html_join
 
-from .models import Car, CarFeature, CarImage, Favourite, FeatureCategory
+from .models import Car, CarFeature, CarImage, Colour, Favourite, FeatureCategory
 from .utils import to_browser_safe_image
 
 FEATURE_BULK_FIELDS = {
@@ -30,6 +31,32 @@ class MultipleFileField(forms.FileField):
         if isinstance(data, (list, tuple)):
             return [super(MultipleFileField, self).clean(d, initial) for d in data]
         return super().clean(data, initial)
+
+
+class SuggestionTextInput(forms.TextInput):
+    """A text box that suggests values from a list but accepts anything typed."""
+
+    def __init__(self, suggestions=(), attrs=None):
+        super().__init__(attrs)
+        self.suggestions = list(suggestions)
+
+    def render(self, name, value, attrs=None, renderer=None):
+        attrs = dict(attrs or {})
+        list_id = f"{attrs.get('id', name)}_suggestions"
+        attrs.update(list=list_id, autocomplete="off")
+        options = format_html_join("", '<option value="{}">', ((s,) for s in self.suggestions))
+        return format_html(
+            '{}<datalist id="{}">{}</datalist>',
+            super().render(name, value, attrs, renderer), list_id, options,
+        )
+
+
+def colour_suggestions():
+    """The standard colours plus any typed in for earlier cars, so spellings stay the same."""
+    used = Car.objects.exclude(colour="").order_by().values_list("colour", flat=True).distinct()
+    by_key = {colour.casefold(): colour for colour in used}
+    by_key.update({colour.casefold(): colour for colour in Colour.values})
+    return sorted(by_key.values())
 
 
 class CarAdminForm(forms.ModelForm):
@@ -64,10 +91,21 @@ class CarAdminForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.colour_suggestions = colour_suggestions()
+        colour_field = self.fields["colour"]
+        colour_field.widget = SuggestionTextInput(self.colour_suggestions, attrs=colour_field.widget.attrs)
         if self.instance and self.instance.pk:
             for field_name, category in FEATURE_BULK_FIELDS.items():
                 texts = self.instance.features.filter(category=category).values_list("text", flat=True)
                 self.fields[field_name].initial = "\n".join(texts)
+
+    def clean_colour(self):
+        """Tidy the spacing, and use the existing spelling, so "black" saves as "Black"."""
+        colour = " ".join((self.cleaned_data.get("colour") or "").split())
+        for known in self.colour_suggestions:
+            if known.casefold() == colour.casefold():
+                return known
+        return colour
 
     def clean_image(self):
         image = self.cleaned_data.get("image")
